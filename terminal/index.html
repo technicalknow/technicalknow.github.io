@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Web Terminal</title>
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #000000;
+    color: #ffffff;
+    font-size: 16px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+header {
+    background-color: #111;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+main {
+    flex: 1 1 auto;
+    display: flex;
+    padding: 0;
+    margin: 0;
+    height: calc(100vh - 42px);
+}
+.terminal-wrap{
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent);
+}
+.screen{
+    flex: 1 1 auto;
+    overflow:auto;
+    padding: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+    line-height: 1.5;
+    color: #ffffff;
+}
+.line{white-space:pre-wrap;word-break:break-word;font-size:15px;}
+.prompt{ color: rgb(65, 255, 48); margin-right:8px; font-weight:600; }
+.input {
+    display:inline-block;
+    outline:none;
+    border:none;
+    background:transparent;
+    color:inherit;
+    caret-color:transparent; /* keep native caret hidden */
+    font:inherit;
+    min-width:40%;
+}
+/* Cursor styles removed */
+.muted{ color: #7b8a9a; }
+.error{ color: #ff6b6b; }
+.path{ color: #ffd580; }
+.file{ color: #c6b9ff; }
+@media (min-width: 768px) {
+    .terminal-wrap{ padding:18px; }
+    .screen{ padding:18px; }
+}
+</style>
+</head>
+<body>
+<header>[visitor@tk ~]$ terminal</header>
+<main>
+  <div class="terminal-wrap">
+    <div class="screen" id="screen" tabindex="0" aria-label="Terminal screen">
+      <div class="line muted">Technical Know [Version 1.0.0]</div>
+      <div class="line muted">(c) 2025 Technical Know Terminal. All rights reserved.</div>
+      <div class="line muted">Type 'help' to get help.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  const screen = document.getElementById('screen');
+
+  const fs = {
+    '/': { type: 'dir', children: {
+      'home': { type: 'dir', children: {
+        'visitor': { type: 'dir', children: {
+          'welcome.txt': { type: 'file', content:
+`Welcome to Technical Know!
+
+Thank you for visiting our channel! Here at Technical Know, we are dedicated to demystifying technology and helping you make the most of your digital life. Our channel is now focused on all things Linux!
+
+What You’ll Find on This Channel:
+- Linux Tutorials: Step-by-step guides to installing, configuring, and using Linux distributions.
+- How-To Videos: Practical demonstrations covering tasks and solutions in Linux.
+- Tips & Tricks: Expert advice to make your Linux experience smooth and efficient.
+- Troubleshooting Guides: Solutions to common Linux problems for beginners and intermediates.
+- Linux News & Updates: Stay informed with the latest features, releases, and trends in the Linux ecosystem.
+- Community Q&A: We answer your questions and address your challenges with dedicated content.
+
+Whether you’re new to Linux or looking to deepen your expertise, our channel is here to support your journey. Don’t forget to subscribe and hit the bell icon for the latest updates!
+
+Welcome to the Technical Know community—let’s master Linux together!
+
+- Technical Know` 
+},
+
+          'fscociety00.dat': { type: 'file', content: `
+--------- fsociety00.dat----------
+
+           LEAVE ME HERE
+                    
+----------------------------------          ` }
+        }}
+      }},
+      'etc': { type: 'dir', children: {
+        'config': { type: 'file', content: 'configration is going on.' }
+      }},
+      'var': { type: 'dir', children: {
+        'file.txt': { type: 'file', content: 'what are you doing here ?' }
+      } },
+      
+    }}
+  };
+
+  let cwd = ['/','home','visitor'];
+  let history = [];
+  let histIndex = -1;
+
+  function createPromptLine(prefill='') {
+    const line = document.createElement('div');
+    line.className = 'line';
+    const promptSpan = document.createElement('span');
+    promptSpan.className = 'prompt';
+    promptSpan.textContent = '[visitor@tk ' + getCwdDisplay() + ']$';
+    const inp = document.createElement('span');
+    inp.className = 'input';
+    inp.contentEditable = true;
+    inp.spellcheck = false;
+    inp.innerText = prefill;
+    inp.addEventListener('keydown', handleInputKeydown);
+    // no cursor element appended
+    line.appendChild(promptSpan);
+    line.appendChild(inp);
+    screen.appendChild(line);
+    focusInput(inp);
+    line.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function focusInput(inp){
+    inp.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    const range = document.createRange();
+    range.selectNodeContents(inp);
+    range.collapse(false);
+    sel.addRange(range);
+  }
+
+  function getCwdDisplay(){
+    if (cwd.length === 1) return '~';
+    const idx = cwd.indexOf('home')!==-1 && cwd[1]==='home' && cwd[2] ? cwd.slice(2).join('/') : cwd.slice(1).join('/');
+    return '~' + (idx ? '/' + idx : '');
+  }
+
+  function resolvePath(pathStr){
+    if (!pathStr) return {node: getNodeAtPath(cwd), path: cwd.slice()};
+    const parts = pathStr.split('/').filter(p=>p.length>0);
+    let isAbsolute = pathStr.startsWith('/');
+    let pArr = isAbsolute ? ['/'] : cwd.slice();
+    for (const part of parts){
+      if (part === '.' ) continue;
+      if (part === '..') { if (pArr.length > 1) pArr.pop(); continue; }
+      const node = getNodeAtPath(pArr);
+      if (!node || node.type !== 'dir' || !node.children[part]) {
+        return {node: null, path: null, missing: part};
+      }
+      pArr.push(part);
+    }
+    return {node: getNodeAtPath(pArr), path: pArr};
+  }
+
+  function getNodeAtPath(pathArr){
+    let node = fs['/'];
+    for (let i=1;i<pathArr.length;i++){
+      const name = pathArr[i];
+      if (!node || node.type !== 'dir') return null;
+      node = node.children[name];
+      if (!node) return null;
+    }
+    return node;
+  }
+
+  function print(text, cls){
+    const line = document.createElement('div');
+    line.className = 'line' + (cls? ' ' + cls : '');
+    line.textContent = text;
+    screen.appendChild(line);
+    line.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function printHTML(html, cls){
+    const line = document.createElement('div');
+    line.className = 'line' + (cls? ' ' + cls : '');
+    line.innerHTML = html;
+    screen.appendChild(line);
+    line.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function submitCommand(cmdRaw, inputElem) {
+    const cmdLine = (cmdRaw||'').trim();
+    inputElem.removeEventListener('keydown', handleInputKeydown);
+    const textNode = document.createElement('span');
+    textNode.className = 'input';
+    textNode.textContent = cmdRaw;
+    inputElem.replaceWith(textNode);
+    // no cursor to remove
+
+    if (cmdLine.length === 0) {
+      createPromptLine();
+      return;
+    }
+
+    history.push(cmdLine);
+    histIndex = history.length;
+
+    const [cmd, ...args] = tokenize(cmdLine);
+
+    switch(cmd){
+      case 'help':
+        print(`ls     - Lists files and directories in the current folder.
+cd     - Changes the current working directory.
+pwd    - Prints the current working directory path.
+echo   - Displays a line of text or variables.
+clear  - Clears the terminal screen.
+cat    - Displays or concatenates file contents.
+`, 'muted');
+        break;
+      case 'clear':
+        screen.innerHTML = '';
+        print("Type 'help' to get help.", 'muted');
+                break;
+      case 'pwd':
+        print(getFsPathString(cwd));
+        break;
+      case 'ls':
+        {
+          const target = args[0] || '';
+          const resolved = resolvePath(target);
+          if (!resolved.node) {
+            print(`ls: cannot access '${target}': No such file or directory`, 'error');
+          } else if (resolved.node.type === 'file') {
+            print(resolved.path[resolved.path.length-1], 'file');
+          } else {
+            const names = Object.keys(resolved.node.children).sort();
+            const out = names.map(n => {
+              const it = resolved.node.children[n];
+              return it.type==='dir' ? `<span class="path">${n}/</span>` : `<span class="file">${n}</span>`;
+            }).join('  ');
+            printHTML(out || '<span class="muted">(empty)</span>');
+          }
+        }
+        break;
+      case 'cd':
+        {
+          const target = args[0] || '/home/visitor';
+          const resolved = resolvePath(target);
+          if (!resolved.node) {
+            print(`cd: ${target}: No such file or directory`, 'error');
+          } else if (resolved.node.type !== 'dir') {
+            print(`cd: ${target}: Not a directory`, 'error');
+          } else {
+            cwd = resolved.path;
+          }
+        }
+        break;
+      case 'echo':
+        print(args.join(' '));
+        break;
+      case 'cat':
+        {
+          const target = args[0];
+          if (!target) { print('cat: Missing file operand', 'error'); break;}
+          const resolved = resolvePath(target);
+          if (!resolved.node) { print(`cat: ${target}: No such file`, 'error'); }
+          else if (resolved.node.type === 'dir') print(`cat: ${target}: Is a directory`, 'error');
+          else print(resolved.node.content || '');
+        }
+        break;
+      default:
+        print(`${cmd}: command not found`, 'error');
+    }
+    createPromptLine();
+  }
+
+  function tokenize(line){
+    const tokens = [];
+    let cur=''; let inQuote = false; let quoteChar = '';
+    for (let i=0;i<line.length;i++){
+      const ch = line[i];
+      if (!inQuote && (ch === '"' || ch === "'")) { inQuote = true; quoteChar = ch; continue;}
+      if (inQuote && ch === quoteChar){ inQuote = false; quoteChar=''; tokens.push(cur); cur=''; continue;}
+      if (!inQuote && /\s/.test(ch)){ if (cur!=='') { tokens.push(cur); cur=''; } continue; }
+      cur += ch;
+    }
+    if (cur!=='') tokens.push(cur);
+    return tokens;
+  }
+
+  function getFsPathString(pathArr){
+    if (!pathArr || pathArr.length===1) return '/';
+    return '/' + pathArr.slice(1).join('/');
+  }
+
+  function handleInputKeydown(e){
+    const inputElem = e.currentTarget;
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      const cmd = inputElem.innerText.replace(/\u00A0/g,' ');
+      submitCommand(cmd, inputElem);
+      return;
+    }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (history.length === 0) return;
+      if (e.key === 'ArrowUp') histIndex = Math.max(0, histIndex-1);
+      else histIndex = Math.min(history.length, histIndex+1);
+      const val = history[histIndex] || (histIndex === history.length ? '' : history[history.length-1]);
+      inputElem.innerText = val || '';
+      focusInput(inputElem);
+      return;
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const text = inputElem.innerText;
+      const parts = text.split(/\s+/);
+      const last = parts[parts.length-1] || '';
+      const commands = ['help','ls','cd','pwd','echo','clear','cat'];
+      const cmdCandidates = commands.filter(c => c.startsWith(last));
+      if (cmdCandidates.length === 1) {
+        parts[parts.length-1] = cmdCandidates[0];
+        inputElem.innerText = parts.join(' ');
+        focusInput(inputElem);
+        return;
+      }
+      const node = getNodeAtPath(cwd);
+      if (node && node.type==='dir') {
+        const names = Object.keys(node.children);
+        const fileMatches = names.filter(n => n.startsWith(last));
+        if (fileMatches.length === 1) {
+          parts[parts.length-1] = fileMatches[0];
+          inputElem.innerText = parts.join(' ');
+          focusInput(inputElem);
+          return;
+        }
+      }
+      const matches = cmdCandidates.concat((node?Object.keys(node.children).filter(n=>n.startsWith(last)):[]));
+      if (matches.length>0) print(matches.join('  '), 'muted');
+    }
+  }
+
+  screen.addEventListener('click', (e)=>{
+    const inputs = screen.querySelectorAll('.input[contenteditable="true"]');
+    if (inputs.length) focusInput(inputs[inputs.length-1]);
+    else createPromptLine();
+  });
+
+  createPromptLine();
+
+  document.addEventListener('keydown',(e)=>{
+    if (e.key === 'Tab') {
+      const inputs = screen.querySelectorAll('.input[contenteditable="true"]');
+      if (inputs.length===0) {
+        e.preventDefault();
+        createPromptLine();
+      }
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
