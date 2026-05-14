@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="assets/styles.css">
   <title>Wallpapers</title>
   <style>
     body {
@@ -195,8 +196,10 @@
 
   <main>
     <section class="intro" aria-labelledby="intro-heading">
-      <h2 id="intro-heading" style="margin-top:0;color:rgb(65,255,48)">Browse high-quality wallpapers</h2>
-      <p style="margin:0 0 8px 0; color:#ddd">Click any wallpaper to open the full image in a new tab. Hover to zoom.</p>
+      <h3 id="intro-heading" style="margin-top:0;color:rgb(65,255,48)">categories</h2>
+        <ul>
+            <li>made by tk <3</li>
+        </ul>
     </section>
 
     <section class="content" aria-labelledby="list-heading" style="flex:3">
@@ -219,14 +222,8 @@
     </section>
 
     <aside>
-      <h4 style="margin:0 0 8px 0;color:#fff">About</h4>
-      <p style="margin:0;color:#ccc">A simple responsive wallpaper list. Images open in a new tab for download or full view.</p>
     </aside>
   </main>
-
-  <footer>
-    <small>© <span id="year"></span> Wallpapers</small>
-  </footer>
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
